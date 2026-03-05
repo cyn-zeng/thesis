@@ -1,4 +1,3 @@
-'''no/minimal reasoning'''
 import os, json, time, csv, pickle
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -23,8 +22,8 @@ client = OpenAI(
 )
 
 #MODEL = free_model  # pick any OpenRouter model slug
-CSV_PATH = "output/study1_outputs.csv"
-PKL_PATH = "output/study1_outputs.pkl"
+CSV_PATH = "output/study1_reason_outputs.csv"
+PKL_PATH = "output/study1_reason_outputs.pkl"
 
 N_TRIALS = 40
 
@@ -174,49 +173,33 @@ else:
 file_exists = os.path.isfile(CSV_PATH)
 
 with open(CSV_PATH, "a", encoding="utf-8", newline="") as f:
-    fieldnames = ["ts", "model", "study_condition", "trial", "input", "output", "id", "input_tokens", "output_tokens", "time_sec"]
+    fieldnames = ["ts", "model", "study_condition", "trial", "input", "output", "id"]
     writer = csv.DictWriter(f, fieldnames=fieldnames)
     
     if not file_exists:
         writer.writeheader()
     
-    for MODEL in study_models:
-        for i, (key, prompt) in enumerate(s1.items(), start=1):
-            for trial in range(1, N_TRIALS + 1):
-                start_time = time.time()
-
-                if MODEL in ["google/gemini-3-pro-preview", "x-ai/grok-4"]:
-                    resp = client.chat.completions.create(
-                        model=MODEL,
-                        messages=[
-                            {"role": "system", "content": "You are concise and accurate."},
-                            {"role": "user", "content": prompt},
-                        ],
-                        temperature=0.2,
-                        extra_body={"reasoning": {"effort": "minimal"}} 
-                    )
-                else:
-                    resp = client.chat.completions.create(
-                        model=MODEL,
-                        messages=[
-                            {"role": "system", "content": "You are concise and accurate."},
-                            {"role": "user", "content": prompt},
-                        ],
-                        temperature=0.2,
-                        extra_body={"reasoning": {"effort": "none"}}
-                    )
-
-                elapsed = round(time.time() - start_time, 3)
+    for MODEL in ["x-ai/grok-4"]:
+        for i, (key, prompt) in enumerate(list(s1.items())[-3:], start=1):
+            if key == "Q2_WM_Nonviolent":
+                place_holder = 5
+            else:
+                place_holder = 1
+            for trial in range(place_holder, 19):
+                resp = client.chat.completions.create(
+                    model=MODEL,
+                    messages=[
+                        {"role": "system", "content": "You are concise and accurate."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.2,
+                )
 
                 if not resp.choices:
                     print("Empty choices. Full response:", resp)
                     text = ""
                 else:
                     text = resp.choices[0].message.content or ""
-
-                usage = getattr(resp, "usage", None)
-                input_tokens  = getattr(usage, "prompt_tokens", None)
-                output_tokens = getattr(usage, "completion_tokens", None)
 
                 record = {
                     "ts": now_iso(),
@@ -226,9 +209,6 @@ with open(CSV_PATH, "a", encoding="utf-8", newline="") as f:
                     "input": prompt,
                     "output": text,
                     "id": getattr(resp, "id", None),
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "time_sec": elapsed,
                 }
 
                 writer.writerow(record)
@@ -238,7 +218,7 @@ with open(CSV_PATH, "a", encoding="utf-8", newline="") as f:
                 with open(PKL_PATH, "wb") as pf:
                     pickle.dump(all_records, pf)
 
-                print(f"[model = {MODEL} | condition = {key} | trial = {trial}/{N_TRIALS}] saved {len(text)} chars | time={elapsed}s")
+                print(f"[model = {MODEL} | condition = {key} | trial = {trial}/{N_TRIALS}] saved {len(text)} chars")
                 time.sleep(0.1)
 
 print(f"Done. Appended results to {CSV_PATH} and {PKL_PATH}")
